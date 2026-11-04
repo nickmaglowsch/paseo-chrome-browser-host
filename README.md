@@ -45,6 +45,19 @@ paseo plugin install "$PWD"
 Plugins run only when `pluginsEnabled` is `true` in the daemon config. After pulling changes, run
 `paseo plugin reload chrome-browser-host`.
 
+## Watch and drive the tab in Paseo
+
+Open the command center in a workspace and pick **Show the agent's Chrome tab**. The Chrome panel
+shows the newest Chrome window an agent opened for that workspace; chips switch between several.
+
+- Click on the picture to click the page. On desktop and web the mouse wheel scrolls it; on mobile
+  use the arrow buttons.
+- To type, click a field in the picture, then use the text box: **Type** inserts the text, Enter
+  inserts it and presses Enter. The key buttons press Enter, Tab, Backspace or Escape.
+- Back, forward and reload work like the browser buttons.
+- The picture refreshes about six times a second while the panel is open, and only changed frames
+  are sent. Your input changes the page under the agent, so its next command takes a new snapshot.
+
 ## Behavior
 
 - Each `browser_new_tab` opens its own Chrome window in the background. A background tab stops

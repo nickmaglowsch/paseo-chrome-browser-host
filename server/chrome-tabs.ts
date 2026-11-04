@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type {
   BrowserAutomationConsoleLogEntry,
   BrowserAutomationDialogEvent,
@@ -21,7 +21,12 @@ import {
   handledDialogEvent,
   MAX_DIALOGS_PER_COMMAND,
 } from "./vendor/browser-automation/dialog-handling";
-import type { IsolatedKeyboardInputEvent } from "./vendor/browser-automation/trusted-input";
+import {
+  dispatchTrustedClick,
+  dispatchTrustedKey,
+  type IsolatedKeyboardInputEvent,
+} from "./vendor/browser-automation/trusted-input";
+import type { MirrorFrame, MirrorInput, MirrorTab } from "../shared/mirror";
 import type { CdpConnection } from "./cdp";
 
 // Under the broker's 15s deadline, so new_tab and navigate answer before the broker gives up.
@@ -130,6 +135,25 @@ export class ChromeTabs implements BrowserRegistry {
         }));
     }
     return executeAutomationCommand(request, this, { snapshotEngine: this.snapshotEngine });
+  }
+
+  public listMirrorTabs(workspaceId: string): MirrorTab[] {
+    return [...this.tabs.values()]
+      .filter((tab) => tab.workspaceId === workspaceId)
+      .map((tab) => ({ browserId: tab.browserId, url: tab.url, title: tab.title }));
+  }
+
+  public mirrorFrame(browserId: string): Promise<MirrorFrame> | null {
+    return this.tabs.get(browserId)?.captureMirrorFrame() ?? null;
+  }
+
+  public async mirrorInput(input: MirrorInput): Promise<boolean> {
+    const tab = this.tabs.get(input.browserId);
+    if (!tab) return false;
+    // Your input changes the page under the agent, so its refs are stale either way.
+    this.snapshotEngine.clearBrowser(input.browserId);
+    await tab.mirrorInput(input);
+    return true;
   }
 
   public listRegisteredBrowserIds(): string[] {
@@ -370,6 +394,43 @@ class ChromeTab {
     void Promise.all([this.refreshHistory(), restored ? this.refreshInfo() : null])
       .catch(() => {})
       .finally(() => restored && this.resolveLoadWaiters());
+  }
+
+  public async captureMirrorFrame(): Promise<MirrorFrame> {
+    // Unqueued, so a frame never waits behind an agent command.
+    const [{ data }, { cssLayoutViewport }] = await Promise.all([
+      this.send<{ data: string }>("Page.captureScreenshot", {
+        format: "jpeg",
+        quality: 55,
+        optimizeForSpeed: true,
+      }),
+      this.send<{ cssLayoutViewport: { clientWidth: number; clientHeight: number } }>(
+        "Page.getLayoutMetrics",
+      ),
+    ]);
+    return {
+      jpeg: data,
+      width: cssLayoutViewport.clientWidth,
+      height: cssLayoutViewport.clientHeight,
+      hash: createHash("sha1").update(data).digest("base64url"),
+    };
+  }
+
+  public async mirrorInput(input: MirrorInput): Promise<void> {
+    const send = (method: string, params?: Record<string, unknown>) => this.queued(method, params);
+    if (input.type === "click") await dispatchTrustedClick(send, { x: input.x, y: input.y });
+    else if (input.type === "scroll")
+      await send("Input.dispatchMouseEvent", {
+        type: "mouseWheel",
+        x: input.x,
+        y: input.y,
+        deltaX: 0,
+        deltaY: input.deltaY,
+      });
+    else if (input.type === "text") await send("Input.insertText", { text: input.text });
+    else if (input.type === "key")
+      dispatchTrustedKey((event) => this.contents.sendInputEvent(event), input.key);
+    else await this.navigateHistory(input.type);
   }
 
   private recordConsole(level: string, message: string, source?: string, line?: number): void {

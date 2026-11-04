@@ -9,6 +9,13 @@ import { ChromeTabs } from "./chrome-tabs";
 
 const RETRY_MS = 5_000;
 
+let currentTabs: ChromeTabs | null = null;
+
+/** The agent tabs of the connected Chrome, or null while Chrome is unreachable. */
+export function currentChromeTabs(): ChromeTabs | null {
+  return currentTabs;
+}
+
 // Registers Chrome as a browser automation host while Chrome is reachable. When Chrome goes
 // away the registration is released, so the desktop app's browser takes over again.
 export function startChromeBrowserHost(): () => Promise<void> {
@@ -43,6 +50,7 @@ export function startChromeBrowserHost(): () => Promise<void> {
 async function serveChrome(client: DaemonClient, cdp: CdpConnection): Promise<void> {
   const tabs = new ChromeTabs(cdp);
   await tabs.start();
+  currentTabs = tabs;
   const registration = client.registerBrowserHost({
     hostKind: "chrome",
     supportedCommands: [...BROWSER_AUTOMATION_COMMAND_NAMES],
@@ -74,6 +82,7 @@ async function serveChrome(client: DaemonClient, cdp: CdpConnection): Promise<vo
   });
   console.info("[chrome-browser-host] Chrome registered as the browser automation host");
   await cdp.closed;
+  if (currentTabs === tabs) currentTabs = null;
   unsubscribe();
   await registration.release().catch(() => {});
   console.info("[chrome-browser-host] Chrome disconnected; released the browser host");
