@@ -1,0 +1,9 @@
+These files are copied from Paseo (https://github.com/getpaseo/paseo),
+packages/desktop/src/features/browser-automation, at commit
+5d1a2c10f8a493e2329f3f9bee51dfb94ccd28af. Paseo is licensed under the
+Apache License 2.0; see LICENSE at the root of this repository.
+
+Change from upstream: trusted-input.ts declares the two KeyboardInputEvent
+fields it uses instead of importing Electron's type.
+
+To update, copy the same files from a newer Paseo checkout and reapply that change.

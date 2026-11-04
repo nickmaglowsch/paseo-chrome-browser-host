@@ -1,0 +1,4 @@
+{
+  "id": "chrome-browser-host",
+  "requirements": { "paseo": ">=0.15.0" }
+}

@@ -1,0 +1,21 @@
+{
+  "name": "chrome-browser-host",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "license": "Apache-2.0",
+  "files": ["paseo-plugin.json", "index.server.ts", "server/"],
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@getpaseo/client": "^0.14.0",
+    "@getpaseo/protocol": "^0.14.0"
+  },
+  "devDependencies": {
+    "@getpaseo/plugin": "^0.14.0",
+    "@types/node": "^22.0.0",
+    "typescript": "^5.9.3",
+    "zod": "^4.4.3"
+  }
+}
