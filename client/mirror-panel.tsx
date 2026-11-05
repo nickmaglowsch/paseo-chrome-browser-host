@@ -27,6 +27,8 @@ const KEYS = ["Enter", "Tab", "Backspace", "Escape"] as const;
 const WHEEL_FLUSH_MS = 80;
 const NATIVE_SCROLL_STEP = 400;
 const FRAME_POLL_MS = 160;
+// Phones often reach the daemon over the relay or cellular: fewer, smaller frames.
+const COMPACT_FRAME_POLL_MS = 500;
 
 export function MirrorPanel({ workspaceId, theme, layout }: PluginWorkspacePanelProps) {
   const styles = useStyles(theme);
@@ -54,7 +56,13 @@ export function MirrorPanel({ workspaceId, theme, layout }: PluginWorkspacePanel
     body = <Text style={styles.muted}>No agent tabs yet. Ask an agent to open a page.</Text>;
   else
     body = (
-      <Mirror key={active.browserId} tab={active} styles={styles} web={layout.platform === "web"} />
+      <Mirror
+        key={active.browserId}
+        tab={active}
+        styles={styles}
+        web={layout.platform === "web"}
+        compact={layout.compact}
+      />
     );
 
   return (
@@ -80,8 +88,18 @@ export function MirrorPanel({ workspaceId, theme, layout }: PluginWorkspacePanel
   );
 }
 
-function Mirror({ tab, styles, web }: { tab: MirrorTab; styles: Styles; web: boolean }) {
-  const frame = useMirrorFrame(tab.browserId);
+function Mirror({
+  tab,
+  styles,
+  web,
+  compact,
+}: {
+  tab: MirrorTab;
+  styles: Styles;
+  web: boolean;
+  compact: boolean;
+}) {
+  const frame = useMirrorFrame(tab.browserId, compact);
   const sendInput = useRpc(sendMirrorInput);
   const send = useCallback<Send>((input) => void sendInput(input).catch(() => {}), [sendInput]);
   const { browserId } = tab;
@@ -122,17 +140,17 @@ function Mirror({ tab, styles, web }: { tab: MirrorTab; styles: Styles; web: boo
 }
 
 /** Polls the tab's picture, keeping the last frame while the page is unchanged. */
-function useMirrorFrame(browserId: string): MirrorFrame | null {
+function useMirrorFrame(browserId: string, compact: boolean): MirrorFrame | null {
   const getFrame = useRpc(getMirrorFrame);
   const last = useRef<MirrorFrame | null>(null);
   const query = useQuery({
-    queryKey: ["chrome-mirror-frame", browserId],
+    queryKey: ["chrome-mirror-frame", browserId, compact],
     queryFn: async () => {
-      const result = await getFrame({ browserId, since: last.current?.hash });
+      const result = await getFrame({ browserId, since: last.current?.hash, small: compact });
       if (result.status === "frame") last.current = result.frame;
       return last.current;
     },
-    refetchInterval: FRAME_POLL_MS,
+    refetchInterval: compact ? COMPACT_FRAME_POLL_MS : FRAME_POLL_MS,
     gcTime: 0,
   });
   return query.data ?? null;

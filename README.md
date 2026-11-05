@@ -56,7 +56,8 @@ shows the newest Chrome window an agent opened for that workspace; chips switch 
   inserts it and presses Enter. The key buttons press Enter, Tab, Backspace or Escape.
 - Back, forward and reload work like the browser buttons.
 - The picture refreshes about six times a second while the panel is open, and only changed frames
-  are sent. Your input changes the page under the agent, so its next command takes a new snapshot.
+  are sent. On a phone it refreshes twice a second with a smaller, lower-quality picture (480 pixels
+  wide), which keeps it usable over the relay or cellular. Your input changes the page under the agent, so its next command takes a new snapshot.
 
 ## Behavior
 

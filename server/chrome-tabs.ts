@@ -61,6 +61,16 @@ const VIRTUAL_KEY_CODES: Record<string, number> = {
 
 type Payload = AutomationCommandPayload;
 type HistoryAction = "back" | "forward" | "reload";
+interface LayoutMetrics {
+  cssLayoutViewport: { clientWidth: number; clientHeight: number };
+  cssVisualViewport: { pageX: number; pageY: number; clientWidth: number; clientHeight: number };
+  contentSize: { width: number };
+  cssContentSize: { width: number };
+}
+
+const FRAME_QUALITY = 55;
+const SMALL_FRAME_QUALITY = 35;
+const SMALL_FRAME_WIDTH = 480;
 
 function fail(requestId: string, code: BrowserAutomationErrorCode, message: string): Payload {
   return { requestId, ok: false, error: { code, message, retryable: false } };
@@ -143,8 +153,8 @@ export class ChromeTabs implements BrowserRegistry {
       .map((tab) => ({ browserId: tab.browserId, url: tab.url, title: tab.title }));
   }
 
-  public mirrorFrame(browserId: string): Promise<MirrorFrame> | null {
-    return this.tabs.get(browserId)?.captureMirrorFrame() ?? null;
+  public mirrorFrame(browserId: string, small: boolean): Promise<MirrorFrame> | null {
+    return this.tabs.get(browserId)?.captureMirrorFrame(small) ?? null;
   }
 
   public async mirrorInput(input: MirrorInput): Promise<boolean> {
@@ -396,18 +406,30 @@ class ChromeTab {
       .finally(() => restored && this.resolveLoadWaiters());
   }
 
-  public async captureMirrorFrame(): Promise<MirrorFrame> {
+  public async captureMirrorFrame(small: boolean): Promise<MirrorFrame> {
     // Unqueued, so a frame never waits behind an agent command.
-    const [{ data }, { cssLayoutViewport }] = await Promise.all([
-      this.send<{ data: string }>("Page.captureScreenshot", {
-        format: "jpeg",
-        quality: 55,
-        optimizeForSpeed: true,
-      }),
-      this.send<{ cssLayoutViewport: { clientWidth: number; clientHeight: number } }>(
-        "Page.getLayoutMetrics",
-      ),
-    ]);
+    const metrics = await this.send<LayoutMetrics>("Page.getLayoutMetrics");
+    const { cssLayoutViewport, cssVisualViewport } = metrics;
+    // Chrome multiplies clip.scale by the screen density, so divide it back out.
+    const density = metrics.contentSize.width / metrics.cssContentSize.width || 1;
+    const { data } = await this.send<{ data: string }>("Page.captureScreenshot", {
+      format: "jpeg",
+      quality: small ? SMALL_FRAME_QUALITY : FRAME_QUALITY,
+      optimizeForSpeed: true,
+      // Clip coordinates are page coordinates, so offset by the scroll position. The picture
+      // ends up at most SMALL_FRAME_WIDTH image pixels wide.
+      ...(small
+        ? {
+            clip: {
+              x: cssVisualViewport.pageX,
+              y: cssVisualViewport.pageY,
+              width: cssVisualViewport.clientWidth,
+              height: cssVisualViewport.clientHeight,
+              scale: Math.min(1, SMALL_FRAME_WIDTH / (cssVisualViewport.clientWidth * density)),
+            },
+          }
+        : {}),
+    });
     return {
       jpeg: data,
       width: cssLayoutViewport.clientWidth,

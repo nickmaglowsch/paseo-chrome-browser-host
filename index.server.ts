@@ -7,9 +7,9 @@ export default function contribute(server: PluginServerContext) {
     const tabs = currentChromeTabs();
     return { connected: tabs !== null, tabs: tabs?.listMirrorTabs(workspaceId) ?? [] };
   });
-  server.handle(getMirrorFrame, async ({ browserId, since }) => {
+  server.handle(getMirrorFrame, async ({ browserId, since, small }) => {
     const frame = await currentChromeTabs()
-      ?.mirrorFrame(browserId)
+      ?.mirrorFrame(browserId, small ?? false)
       ?.catch(() => null);
     if (!frame) return { status: "missing" as const };
     return frame.hash === since

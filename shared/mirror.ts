@@ -28,7 +28,12 @@ export type MirrorFrame = z.infer<typeof MirrorFrameSchema>;
  */
 export const getMirrorFrame = defineRpc({
   name: "chrome.mirror.frame",
-  input: z.object({ browserId: z.string(), since: z.string().optional() }),
+  input: z.object({
+    browserId: z.string(),
+    since: z.string().optional(),
+    /** Phones: a smaller, lower-quality picture. */
+    small: z.boolean().optional(),
+  }),
   output: z.discriminatedUnion("status", [
     z.object({ status: z.literal("frame"), frame: MirrorFrameSchema }),
     z.object({ status: z.literal("unchanged") }),
